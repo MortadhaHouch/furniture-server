@@ -1,21 +1,36 @@
-import {Schema,model} from "mongoose"
+import { Schema, model } from 'mongoose';
 
 const cardSchema = new Schema({
-    products:{
-        type:[Schema.Types.ObjectId],
-        ref:"Product"
-    },
-    user:{
-        type:Schema.Types.ObjectId,
-        ref:"User"
-    },
-    totalPrice:{
-        type:Number,
-        required:true,
-        default:0
+  products: [
+    {
+      id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Product',
+        required: true
+      },
+      status: {
+        type: String,
+        enum: ['PENDING', 'COMPLETED', 'CANCELLED'],
+        default: 'PENDING'
+      },
+      count:{
+        type: Number,
+        required: true,
+        default: 1
+      }
     }
-},{
-    timestamps:true
-})
+  ],
+  user: {
+    type: Schema.Types.ObjectId,
+    required: true
+  },
+  totalPrice: {
+    type: Number,
+    required: true,
+    default: 0
+  }
+}, {
+  timestamps: true
+});
 
-export default model("Card",cardSchema)
+export default model('Card', cardSchema);

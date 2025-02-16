@@ -14,6 +14,11 @@ const userSchema = new Schema({
         required:true,
         unique:true
     },
+    secondaryEmail:{
+        type:String,
+        required:false,
+        default:""
+    },
     avatar:{
         type:String,
         default:"",
@@ -25,16 +30,16 @@ const userSchema = new Schema({
     },
     role:{
         type:String,
-        enum:["USER","ADMIN"],
+        enum:["USER","ADMIN","SUPER_ADMIN"],
         default:"USER"
     },
     address:{
         type:String,
-        required:true
+        required:false
     },
     phone:{
-        type:String,
-        required:true
+        type:Number,
+        required:false
     },
     card:{
         type:[Schema.Types.ObjectId],
@@ -44,14 +49,26 @@ const userSchema = new Schema({
     savedProducts:{
         type:[Schema.Types.ObjectId],
         default:[]
+    },
+    isLoggedIn:{
+        type:Boolean,
+        default:false
+    },
+    notifications:{
+        type:[Schema.Types.ObjectId],
+    },
+    notificationsEnabled:{
+        type:Boolean,
+        default:true
     }
 },{
     timestamps:true
 })
 userSchema.pre("save",async function(){
     if(this.isNew || this.isModified("password")){
-        const hashedPassword = await bcrypt.genSalt(10);
-        this.password = await bcrypt.hash(this.password,hashedPassword);
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(this.password,salt);
+        this.password = hashedPassword;
     }
 })
 const userModel = model("user",userSchema)
