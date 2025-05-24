@@ -17,11 +17,17 @@ const cardSchema = new Schema({
         type: Number,
         required: true,
         default: 1
+      },
+      addedOn:{
+        type: Date,
+        required: true,
+        default: new Date()
       }
     }
   ],
   user: {
     type: Schema.Types.ObjectId,
+    ref:"user",
     required: true
   },
   totalPrice: {

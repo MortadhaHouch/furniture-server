@@ -1,3 +1,4 @@
+import fs from 'fs';
 import bcrypt from 'bcrypt';
 import {Response, Router,Request} from "express"
 import User from "../models/User";
@@ -5,6 +6,95 @@ const userController:Router = Router()
 import jwt from "jsonwebtoken"
 import Product from '../models/Product';
 import Card from '../models/Card';
+import path from 'path';
+import dotenv from 'dotenv';
+dotenv.config();
+import { getContentType } from '../utils/getFileType';
+userController.get("/stats", async (req: Request, res: Response): Promise<any> => {
+    try {
+        const auth_token = req.cookies.auth_token;
+        if (!auth_token) {
+            return res.status(401).json({ cred_message: "Unauthorized" });
+        }else{
+            const { email } = jwt.verify(auth_token, process.env.SECRET_KEY as string) as { email: string };
+            const user = await User.findOne({ email });
+            if (!user) {
+                return res.status(401).json({ auth_message: "Not authorized" });
+            }else{
+                const userCart = await Card.findOne({ user: user._id });
+                let ongoing: any[] = [];
+                let completed: any[] = [];
+                let cancelled: any[] = [];
+                let savedProducts: any[] = [];
+                if (userCart) {
+                    const cartProducts = (await Product.find({ _id: { $in: userCart.products.map((item) => item.id) } }))
+                        .map((product) => {
+                            const currentProduct = userCart.products.find((item) => item.id.toString() === product._id.toString());
+                            return {
+                                _id: product._id,
+                                name: product.name,
+                                image: product.images,
+                                price: product.price,
+                                count: currentProduct?.count || 0,
+                                category: product.category,
+                                status: currentProduct?.status || "PENDING",
+                                createdAt: currentProduct?.addedOn || new Date(),
+                            };
+                        });
+                    ongoing = cartProducts.filter((product) => {
+                        return userCart.products.some((item) => item.id.toString() === product._id.toString() && item.status === "PENDING");
+                    });
+                    completed = cartProducts.filter((product) => {
+                        return userCart.products.some((item) => item.id.toString() === product._id.toString() && item.status === "COMPLETED");
+                    });
+                    cancelled = cartProducts.filter((product) => {
+                        return userCart.products.some((item) => item.id.toString() === product._id.toString() && item.status === "CANCELLED");
+                    });
+                    const purchases = cartProducts
+                        .filter((product) => {
+                            return userCart.products.some((item) => 
+                                item.id.toString() === product._id.toString() && item.status === "COMPLETED"
+                            )
+                        }).map((item) => {
+                            return {
+                                ...item,
+                                id: item._id
+                            }
+                        });
+                    return res.json({
+                        user,
+                        isVerified: true,
+                        userStats: {
+                            ongoing: ongoing.length,
+                            completed: completed.length,
+                            cancelled: cancelled.length,
+                            savedProducts: savedProducts,
+                            purchases
+                        },
+                    });
+                }else{
+                    return res.json({
+                        user,
+                        isVerified: true,
+                        userStats: {
+                            ongoing: ongoing.length,
+                            completed: completed.length,
+                            cancelled: cancelled.length,
+                            savedProducts: savedProducts,
+                            purchases:[]
+                        },
+                    });
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error("Error fetching user stats:", error);
+        return res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+
 userController.get("/data",async(req,res)=>{
     try {
         const auth_token = req.cookies.auth_token;
@@ -51,6 +141,7 @@ userController.get("/:id",async(req:Request, res:Response)=>{
                 if(['ADMIN','SUPER_ADMIN'].includes(user.role)){
                     const {id} = req.params;
                     const targetUser = await User.findById(id);
+                    const userCard = await Card.findOne({user:user._id})
                     if(targetUser){
                         res.json({
                             isVerified:true,
@@ -63,8 +154,7 @@ userController.get("/:id",async(req:Request, res:Response)=>{
                                 avatar:targetUser.avatar,
                                 address:targetUser.address,
                                 phone:targetUser.phone,
-                                card:targetUser.card,
-                                savedProducts:targetUser.savedProducts,
+                                card:userCard?.products.length||0,
                                 timestamps:{
                                     createdAt:targetUser.createdAt
                                 },
@@ -122,8 +212,6 @@ userController.get("/get-all/:p?", async (req: Request, res: Response) => {
                                 avatar:el.avatar,
                                 address:el.address,
                                 phone:el.phone,
-                                card:el.card,
-                                savedProducts:el.savedProducts,
                                 timestamps:{
                                     createdAt:el.createdAt
                                 },
@@ -141,58 +229,26 @@ userController.get("/get-all/:p?", async (req: Request, res: Response) => {
         res.status(500).json({ error: "Internal server error" });
     }
 });
-
-userController.get("/stats",async (req:Request, res:Response) => {
-    try {
-        const auth_token = req.cookies.auth_token;
-        console.log(auth_token);
-        if(auth_token){
-            const {email} = jwt.verify(auth_token,process.env.SECRET_KEY as string) as {email:string};
-            const user = await User.findOne({email});
-            if(user){
-                const userCart = await Card.findOne({user:user._id});
-                const ongoingSearchTasks = []
-                const completedSearchTasks = []
-                const cancelledSearchTasks = []
-                const savedProductsSearchTasks = []
-                if(userCart){
-                    const ongoing = userCart.products.filter((item)=>item.status === "CANCELLED").map((item)=>Product.findById(item._id))
-                    const completed = userCart.products.filter((item)=>item.status === "COMPLETED").map((item)=>Product.findById(item._id))
-                    const cancelled = userCart.products.filter((item)=>item.status === "CANCELLED").map((item)=>Product.findById(item._id))
-                    ongoingSearchTasks.push(...ongoing)
-                    completedSearchTasks.push(...completed)
-                    cancelledSearchTasks.push(...cancelled)
+userController.get("/:userId/:avatar",async(req,res)=>{
+    try{
+        const {userId,avatar} = req.params;
+        const user = await User.findById(userId);
+        if(user){
+            if(user.avatar){
+                const filePath = path.join(__dirname,"../uploads","users",user.avatar);
+                if(fs.existsSync(filePath)){
+                    res.setHeader("Content-Type", getContentType(avatar));
+                    res.setHeader("Content-Disposition", `attachment; filename=${path.basename(filePath)}`);
+                    res.sendFile(filePath);
                 }
-                for (let i = 0; i < user.savedProducts.length; i++) {
-                    const product = Product.findById(user.savedProducts[i]);
-                    savedProductsSearchTasks.push(product);
-                }
-                const [ongoing,completed,cancelled,savedProducts] = await Promise.all([
-                        Promise.all(ongoingSearchTasks),
-                        Promise.all(completedSearchTasks),
-                        Promise.all(cancelledSearchTasks),
-                        Promise.all(savedProductsSearchTasks)
-                    ]
-                )
-                res.json({
-                    user,
-                    isVerified:true,
-                    userStats:{
-                        ongoing:ongoing.filter((item)=>item!==null).length,
-                        completed:completed.filter((item)=>item!==null).length,
-                        cancelled:cancelled.filter((item)=>item!==null).length,
-                        savedProducts
-                    },
-                })
             }else{
-                res.status(401).json({auth_message:"not authorized"})
+                res.status(404).json({message:"Not found"})
             }
         }else{
-            console.log({auth_message:"Unauthorized"});
-            res.status(401).json({cred_message:"Unauthorized"})
+            res.status(404).json({message:"User not found"})
         }
-    } catch (error) {
-        console.log(error);
+    }catch(e){
+        console.log(e);
     }
 })
 userController.post("/login",async(req:Request,res:Response)=>{

@@ -11,9 +11,16 @@ const productSchema = new Schema({
     reviews: [{
         userId: {type: Schema.Types.ObjectId, ref: "User"},
         comment: {type: String, required: true},
-        rating: {type: Number, required: true},
         createdAt: {type: Date, default: Date.now}
-    }]
+    }],
+    reviewers:[{
+        userId: {type: Schema.Types.ObjectId, ref: "User"},
+        createdAt: {type: Date, default: Date.now}
+    }],
+    saves:{
+        type:Number,
+        default:0,
+    }
 },{
     timestamps: true
 })

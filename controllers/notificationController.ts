@@ -13,7 +13,7 @@ notificationController.get("/:p?",async(req:Request, res:Response) => {
                 const {p} = req.params;
                 const notificationsTasks = [];
                 if(p && !isNaN(Number(p))){
-                    for(const notification of user.notifications.slice(0,Number(p)*10)){
+                    for(const notification of user.notifications.slice((Number(p)-1)*10,Number(p)*10)){
                         const notificationTask = Notification.findById(notification._id);
                         notificationsTasks.push(notificationTask);
                     }
@@ -22,7 +22,7 @@ notificationController.get("/:p?",async(req:Request, res:Response) => {
                     notificationsTasks.push(notificationTask);
                 }
                 const [foundNotifications] = await Promise.all(notificationsTasks);
-                res.json({notifications:foundNotifications,page:Number(p)+1,pages:user.notifications.length,isVerified:true});
+                res.json({notifications:foundNotifications,page:Number(p),pages:user.notifications.length,isVerified:true});
             }else{
                 res.status(401).json({auth_message:"Unauthorized"});
             }

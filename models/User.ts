@@ -42,14 +42,15 @@ const userSchema = new Schema({
         required:false
     },
     card:{
-        type:[Schema.Types.ObjectId],
-        default:[],
+        type:Schema.Types.ObjectId,
         ref:"Card"
     },
-    savedProducts:{
-        type:[Schema.Types.ObjectId],
-        default:[]
-    },
+    savedProducts:[
+        {
+            type:Schema.Types.ObjectId,
+            ref:"Product"
+        }
+    ],
     isLoggedIn:{
         type:Boolean,
         default:false
